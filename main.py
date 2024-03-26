@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
 from tkcalendar import DateEntry
+from datetime import datetime
+from tkinter import messagebox
+
 
 root = tk.Tk()
 root.title("Csaba Hotel Foglalási Rendszer")
@@ -42,10 +45,30 @@ def tablazat_frissitese():
 
 
 def foglalas_letrehozas(ablak, nev, kezdes, vege, szoba_tipus, szobaszam, ar):
+    try:
+        kezdes_datum = datetime.strptime(kezdes, "%Y.%m.%d")
+        vege_datum = datetime.strptime(vege, "%Y.%m.%d")
+    except ValueError:
+        messagebox.showerror("Hiba", "Érvénytelen dátum formátum. Használja az ÉÉÉÉ.HH.NN formátumot.")
+        return
+
+    if kezdes_datum <= datetime.now():
+        messagebox.showerror("Hiba", "A kezdő dátum nem lehet a jelenleginél korábbi.")
+        return
+
+    if vege_datum < kezdes_datum:
+        messagebox.showerror("Hiba", "A foglalás vége dátuma nem lehet korábbi, mint a kezdő dátum.")
+        return
+
+    if not nev or not szobaszam:
+        messagebox.showerror("Hiba", "A név és a szobaszám mezők kitöltése kötelező.")
+        return
+
+    # Ha minden ellenőrzés sikeres, akkor folytatódik a foglalás hozzáadása
     foglalasok.append((nev, kezdes, vege, szoba_tipus, szobaszam, ar))
+    tablazat_frissitese()
     ablak.destroy()
     muvelet.set("Lekérdezés")
-    tablazat_frissitese()
 
 def open_foglalas_ablak():
 
@@ -57,11 +80,11 @@ def open_foglalas_ablak():
     nev_entry.grid(row=0, column=1)
 
     tk.Label(ablak, text="Foglalás kezdete").grid(row=1, column=0)
-    kezdes_entry = DateEntry(ablak)
+    kezdes_entry = DateEntry(ablak, date_pattern='yyyy.mm.dd')
     kezdes_entry.grid(row=1, column=1)
 
     tk.Label(ablak, text="Foglalás vége").grid(row=2, column=0)
-    vege_entry = DateEntry(ablak)
+    vege_entry = DateEntry(ablak, date_pattern='yyyy.mm.dd')
     vege_entry.grid(row=2, column=1)
 
     tk.Label(ablak, text="Szoba típusa").grid(row=3, column=0)
