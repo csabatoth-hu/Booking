@@ -1,4 +1,4 @@
-# Szálloda Foglalási Rendszer
+# Szállodai Szobafoglalási Rendszer
 
 Ez a projekt egy egyszerű szálloda foglalási rendszert valósít meg, amely lehetővé teszi a felhasználók számára, hogy szobákat foglaljanak, lemondjanak és lekérdezzék a foglalásokat egy grafikus felhasználói interfészen keresztül.
 
