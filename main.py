@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkcalendar import DateEntry
-from datetime import datetime
+from datetime import datetime, timedelta
 from tkinter import messagebox
 from abc import ABC, abstractmethod
 
@@ -53,17 +53,18 @@ class Szalloda:
         return f"Szálloda neve: {self.nev}, Szobák száma: {len(self.szobak)}"
 
 class Foglalas:
-    def __init__(self, foglalo_neve, kezdo_datum, befejezo_datum, szoba):
+    def __init__(self, foglalo_neve, kezdo_datum, befejezo_datum, szoba, ar):
         self.foglalo_neve = foglalo_neve
         self.kezdo_datum = kezdo_datum
         self.befejezo_datum = befejezo_datum
         self.szoba = szoba
+        self.ar = ar
 
     def __str__(self):
-        return f"{self.foglalo_neve}, {self.kezdo_datum}, {self.befejezo_datum}, {self.szoba.szobaszam}"
+        return f"{self.foglalo_neve}, {self.kezdo_datum}, {self.befejezo_datum}, Szoba: {self.szoba.szobaszam}, Ár: {self.ar} Ft"
 
 root = tk.Tk()
-root.title("Csaba Hotel Foglalási Rendszer")
+root.title("Szálloda Foglalási Rendszer")
 root.geometry("800x400+200+100")
 muvelet = tk.StringVar(value="Lekérdezés")
 
@@ -75,9 +76,11 @@ csaba_hotel.szoba_hozzaadasa(KetagyasSzoba(str(201), 45000))
 csaba_hotel.szoba_hozzaadasa(KetagyasSzoba(str(202), 45000))
 
 foglalasok = [
-        Foglalas("Kovács Béla", "2023.04.21", "2023.04.23", csaba_hotel.szobak[0]),
-        Foglalas("Nagy Erzsébet", "2023.05.01", "2023.05.05", csaba_hotel.szobak[1]),
-        Foglalas("Tóth Géza", "2023.06.15", "2023.06.20", csaba_hotel.szobak[3]),
+        Foglalas("Tóth Csaba", "2024.03.28", "2024.03.28", csaba_hotel.szobak[0], 30000),
+        Foglalas("Nagy Erzsébet", "2024.05.01", "2024.05.05", csaba_hotel.szobak[1], 30000),
+        Foglalas("Tóth Géza", "2024.06.26", "2024.06.29", csaba_hotel.szobak[3], 30000),
+        Foglalas("Harrison Ford", "2024.05.13", "2024.07.20", csaba_hotel.szobak[2], 45000),
+        Foglalas("Pamela Anderson", "2024.05.10", "2024.06.25", csaba_hotel.szobak[3], 45000)
     ]
 
 def szabad_szobak(kezdes, vege, tipus):
@@ -89,13 +92,15 @@ def szabad_szobak(kezdes, vege, tipus):
     for foglalas in foglalasok:
         foglalas_kezdet = datetime.strptime(foglalas.kezdo_datum, "%Y.%m.%d")
         foglalas_vege = datetime.strptime(foglalas.befejezo_datum, "%Y.%m.%d")
-        if foglalas_kezdet < vege_datum and foglalas_vege > kezdes_datum:
+
+        if not (kezdes_datum > foglalas_vege or vege_datum < foglalas_kezdet):
             foglalt_szobak.add(foglalas.szoba.szobaszam)
 
     for szoba in csaba_hotel.szobak:
-        if szoba.szobaszam not in foglalt_szobak and (isinstance(szoba, EgyagyasSzoba) and tipus == "Egyágyas" or \
-           isinstance(szoba, KetagyasSzoba) and tipus == "Kétágyas"):
-            szabad_szobak.append(szoba.szobaszam)
+        if szoba.szobaszam not in foglalt_szobak:
+            if (isinstance(szoba, EgyagyasSzoba) and tipus == "Egyágyas") or \
+               (isinstance(szoba, KetagyasSzoba) and tipus == "Kétágyas"):
+                szabad_szobak.append(szoba.szobaszam)
 
     return szabad_szobak
 
@@ -125,7 +130,7 @@ def tablazat_frissitese():
             foglalas.foglalo_neve,
             foglalas.kezdo_datum,
             foglalas.befejezo_datum,
-            "Egyágyas" if isinstance(foglalas.szoba, EgyagyasSzoba) else "Kétagyas",
+            "Egyágyas" if isinstance(foglalas.szoba, EgyagyasSzoba) else "Kétágyas",
             foglalas.szoba.szobaszam,
             f"{foglalas.szoba.ar} Ft"
         ))
@@ -150,18 +155,25 @@ def foglalas_letrehozas(ablak, nev, kezdes, vege, szoba_tipus, szobaszam, ar):
         messagebox.showerror("Hiba", "A név és a szobaszám mezők kitöltése kötelező.")
         return
 
-    elerheto_szobak = szabad_szobak(kezdes, vege)
+    elerheto_szobak = szabad_szobak(kezdes, vege, szoba_tipus)
     if szobaszam not in elerheto_szobak:
-        messagebox.showerror("Hiba", "A kiválasztott szobaszám nem elérhető az adott időszakra.")
+        messagebox.showerror("Hiba", f"A kiválasztott szobaszám ({szobaszam}) nem elérhető az adott időszakra.")
         return
 
-    szoba_obj = EgyagyasSzoba(szobaszam, ar) if szoba_tipus == "Egyágyas" else KetagyasSzoba(szobaszam, ar)
-    foglalasok.append(Foglalas(nev, kezdes, vege, szoba_obj))
+    szoba_obj = next((szoba for szoba in csaba_hotel.szobak if szoba.szobaszam == szobaszam and \
+                      ((szoba_tipus == "Egyágyas" and isinstance(szoba, EgyagyasSzoba)) or \
+                       (szoba_tipus == "Kétágyas" and isinstance(szoba, KetagyasSzoba)))), None)
+
+    foglalasok.append(Foglalas(nev, kezdes, vege, szoba_obj, ar))
     tablazat_frissitese()
     ablak.destroy()
     muvelet.set("Lekérdezés")
 
 def open_foglalas_ablak():
+    global kivalasztott_ar
+    holnap = datetime.now() + timedelta(days=1)
+    holnap_str = holnap.strftime('%Y.%m.%d')
+
     ablak = tk.Toplevel(root)
     ablak.title("Új foglalás")
 
@@ -170,11 +182,11 @@ def open_foglalas_ablak():
     nev_entry.grid(row=0, column=1)
 
     tk.Label(ablak, text="Foglalás kezdete").grid(row=1, column=0)
-    kezdes_entry = DateEntry(ablak, date_pattern='yyyy.mm.dd')
+    kezdes_entry = DateEntry(ablak, date_pattern='yyyy.mm.dd', year=holnap.year, month=holnap.month, day=holnap.day)
     kezdes_entry.grid(row=1, column=1)
 
     tk.Label(ablak, text="Foglalás vége").grid(row=2, column=0)
-    vege_entry = DateEntry(ablak, date_pattern='yyyy.mm.dd')
+    vege_entry = DateEntry(ablak, date_pattern='yyyy.mm.dd', year=holnap.year, month=holnap.month, day=holnap.day)
     vege_entry.grid(row=2, column=1)
 
     tk.Label(ablak, text="Szoba típusa").grid(row=3, column=0)
@@ -182,17 +194,17 @@ def open_foglalas_ablak():
     tk.Radiobutton(ablak, text="Egyágyas", variable=szoba_tipus, value="Egyágyas").grid(row=3, column=1)
     tk.Radiobutton(ablak, text="Kétágyas", variable=szoba_tipus, value="Kétágyas").grid(row=3, column=2)
 
-
     tk.Label(ablak, text="Szobaszám").grid(row=4, column=0)
     szobaszamok = tk.StringVar()
-    szobaszam_dropdown = ttk.Combobox(ablak, textvariable=szobaszamok, state="readonly")
+    szobaszam_dropdown = ttk.Combobox(ablak, textvariable=szobaszamok, values=["Kérlek válassz"], state="readonly")
     szobaszam_dropdown.grid(row=4, column=1)
+    szobaszam_dropdown.set("Kérlek válassz")
 
     tk.Label(ablak, text="Ár").grid(row=5, column=0)
-    ar_entry = tk.Entry(ablak)
-    ar_entry.grid(row=5, column=1)
+    ar_label = tk.Label(ablak, text="A foglalás ára megjelenítésre kerül itt.")
+    ar_label.grid(row=5, column=0, columnspan=2)
 
-    tk.Button(ablak, text="Mentés", command=lambda: foglalas_letrehozas(ablak, nev_entry.get(), kezdes_entry.get(), vege_entry.get(), szoba_tipus.get(), szobaszam_dropdown.get(), ar_entry.get())).grid(row=6, column=0, columnspan=2)
+    tk.Button(ablak, text="Mentés", command=lambda: foglalas_letrehozas(ablak, nev_entry.get(), kezdes_entry.get(), vege_entry.get(), szoba_tipus.get(), szobaszam_dropdown.get(), kivalasztott_ar)).grid(row=6, column=0, columnspan=2)
 
     def datum_valtozas(event):
         valasztott_tipus = szoba_tipus.get()
@@ -205,21 +217,37 @@ def open_foglalas_ablak():
 
     def frissit_szabad_szobak():
         valasztott_tipus = szoba_tipus.get()
-        elerheto_szobak = szabad_szobak(kezdes_entry.get(), vege_entry.get(), valasztott_tipus)
+        elerheto_szobak = ["Kérlek válassz"] + szabad_szobak(kezdes_entry.get(), vege_entry.get(), valasztott_tipus)
         szobaszam_dropdown['values'] = elerheto_szobak
-        if elerheto_szobak:
-            szobaszam_dropdown.set(elerheto_szobak[0])
-        else:
-            szobaszam_dropdown.set('')
+        szobaszam_dropdown.set("Kérlek válassz")
+        if szobaszam_dropdown.get() == "Kérlek válassz":
+            ar_label.config(text=f"A foglalás árához válassz egy szobát!")
+
+    def szoba_valasztas(event):
+        global kivalasztott_ar
+        valasztott_szobaszam = szobaszam_dropdown.get()
+        valasztott_tipus = szoba_tipus.get()
+        for szoba in csaba_hotel.szobak:
+            if szoba.szobaszam == valasztott_szobaszam and \
+                    ((valasztott_tipus == "Egyágyas" and isinstance(szoba, EgyagyasSzoba)) or \
+                     (valasztott_tipus == "Kétágyas" and isinstance(szoba, KetagyasSzoba))):
+                kivalasztott_ar = szoba.ar
+                ar_label.config(text=f"A foglalás ára: {szoba.ar} Ft")
+            elif valasztott_szobaszam=="Kérlek válassz":
+                ar_label.config(text=f"A foglalás árához válassz egy szobát!")
+
 
     szoba_tipus.trace('w', lambda *args: frissit_szabad_szobak())
     kezdes_entry.bind('<<DateEntrySelected>>', datum_valtozas)
     vege_entry.bind('<<DateEntrySelected>>', datum_valtozas)
+    szobaszam_dropdown.bind('<<ComboboxSelected>>', szoba_valasztas)
 
     def on_close():
         muvelet.set("Lekérdezés")
         muveletvaltas()
         ablak.destroy()
+
+    frissit_szabad_szobak()
 
     ablak.protocol("WM_DELETE_WINDOW", on_close)
 
